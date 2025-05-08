@@ -13,21 +13,24 @@ import { promisify } from "util"
 
 const exec = promisify(execCb)
 
-const run = async ({ cmd, cwd }: { cmd: string, cwd: string }): Promise<{ code: number, stdout: string, stderr: string }> => {
+const run = async ({ cmd, cwd }: { cmd: string, cwd?: string }): Promise<{ code: number, stdout: string, stderr: string }> => {
   try {
-    const { stdout, stderr } = await exec(cmd, { cwd, shell: '/bin/zsh' })
+    console.error("cmd:", cmd)
+    console.error("cwd:", cwd)
+    const { stdout, stderr } = await exec(cmd, { cwd })
     console.error("stdout:", stdout)
     console.error("stderr:", stderr)
     return { code: 0, stdout, stderr }
   } catch (error: any) {
     console.error("stdout:", error.stdout)
     console.error("stderr:", error.stderr)
+    console.error("code:", error.code)
     return { code: error.code, stdout: error.stdout, stderr: error.stderr }
   }
 }
 
-const BASE_DIR = path.join('/Users/gilles/gip/HPD/stellardev', "soroban_instances")
-await fs.mkdir(BASE_DIR, { recursive: true })
+const BASE_DIR = process.env.STELLAR_SOROBAN_MCP_BASE_DIR!
+// await fs.mkdir(BASE_DIR, { recursive: true })
 
 const server = new Server(
   { name: "stellarSoroban", version: "0.1.0" },
@@ -40,6 +43,10 @@ function instancePath(id: string): string {
 
 function filePath(id: string, name: string): string {
   return path.join(instancePath(id), `contracts/${name}/src/lib.rs`)
+}
+
+function testFilePath(id: string, name: string): string {
+  return path.join(instancePath(id), `contracts/${name}/src/test.rs`)
 }
 
 function wasmPath(id: string, name: string): string {
@@ -61,7 +68,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "write_code",
-        description: "Write the source code of a contract to the contracts file",
+        description: 
+          "Write the source code of a contract to the contracts file." +
+          "The source code is provided as an array of files. Only " + 
+          "'lib.rs' and 'test.rs' are supported for sourceName.",
         inputSchema: zodToJsonSchema(WriteCodeArgsSchema),
         //outputSchema: zodToJsonSchema(WriteCodeOutSchema)
       },
@@ -114,7 +124,10 @@ const InitializeArgsSchema = z.object({
 const WriteCodeArgsSchema = z.object({
   instance: z.string(),
   contractName: z.string(),
-  content: z.string()
+  sources: z.array(z.object({
+    sourceName: z.string(),
+    content: z.string()
+  }))
 })
 
 // Read code
@@ -166,14 +179,14 @@ server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
         const { contractName } = parsed.data
         const id = uuidv4()
         const dir = instancePath(id)
-        await fs.mkdir(dir)
-        const res = await run({ cmd: `stellar contract init --name ${contractName} .`, cwd: dir })
-        const success = res.code === 0
-        if (!success) {
-          await fs.rmdir(dir, { recursive: true });
-        }
+        // await fs.mkdir(dir)
+        const { code, stdout, stderr } = await run({ cmd: `stellar contract init --name ${contractName} ${dir}` })
+        const success = code === 0
+        // if (!success) {
+        //   await fs.rmdir(dir, { recursive: true });
+        // }
         return {
-          content: [{ type: "text", text: `Success: ${success} Instance: ${id}` }],
+          content: [{ type: "text", text: `Success: ${success} \n ${code === 0 ? stdout : stderr} \n Instance: ${id}` }],
         }
       }
 
@@ -182,9 +195,18 @@ server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
         if (!parsed.success) {
           throw new Error("Invalid arguments")
         }
-        const { instance, contractName, content } = parsed.data
+        const { instance, contractName, sources } = parsed.data
         const targetPath = filePath(instance, contractName)
-        await fs.writeFile(targetPath, content, "utf-8")
+        const testPath = testFilePath(instance, contractName)
+        for (const source of sources) {
+          if (source.sourceName === "lib.rs") {
+            await fs.writeFile(targetPath, source.content, "utf-8")
+          } else if (source.sourceName === "test.rs") {
+            await fs.writeFile(testPath, source.content, "utf-8")
+          } else {
+            throw new Error("Invalid source name")
+          }
+        }
         return {
           content: [{ type: "text", text: `Success: ${true}` }],
         }
@@ -197,11 +219,13 @@ server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
         }
         const { instance, contractName } = parsed.data
         const targetPath = filePath(instance, contractName)
+        const testPath = testFilePath(instance, contractName)
         const content = await fs.readFile(targetPath, "utf-8")
+        const testContent = await fs.readFile(testPath, "utf-8")
         const esc0 = "```rust"
         const esc1 = "```"
         return {
-          content: [{ type: "text", text: `Success: ${true} \n Content for lib.rs \n${esc0}\n${content}\n${esc1}` }],
+          content: [{ type: "text", text: `Success: ${true} \n Content for lib.rs \n${esc0}\n${content}\n${esc1}\n Content for test.rs \n${esc0}\n${testContent}\n${esc1}` }],
         }
       }
 
@@ -247,7 +271,7 @@ server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
           throw new Error("Invalid arguments")
         }
         const { instance, contractId, sourceAccount, method, arguments: a } = parsed.data
-        const parameters: string = a.map(arg => `--${arg.name} ${arg.value}`).join(" ")
+        const parameters: string = a.map(arg => `--${arg.name} '${arg.value}'`).join(" ")
         const { code, stdout, stderr } = await run({ cmd: `stellar contract invoke --source-account ${sourceAccount} --network testnet --id ${contractId} --send=yes -- ${method} ${parameters}`, cwd: instancePath(instance) })
         return {
           content: [{ type: "text", text: `Success: ${code === 0 ? "true" : "false"} \n ${code === 0 ? stdout : stderr}` }],
