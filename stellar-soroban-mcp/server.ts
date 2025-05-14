@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js"
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js"
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js"
 import { v4 as uuidv4 } from "uuid"
 import { z } from "zod"
@@ -292,32 +290,3 @@ server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
 })
 
 export default server
-
-// async function runServer() {
-//   try {
-//     const transport = new StreamableHTTPServerTransport({
-//       sessionIdGenerator: undefined
-//     })
-//     console.error("Attempting to connect transport...")
-//     await server.connect(transport)
-//     console.error("Secure MCP Filesystem Server running http")
-//     // Wait forever
-//     await new Promise((resolve) => {
-//       console.error("Inside forever promise...")
-//       // Maybe add a setInterval to ensure activity
-//       setInterval(() => {
-//         console.error("Server still alive...")
-//       }, 5000)
-//     })
-//   } catch (error) {
-//     console.error("Error in server connection:", error)
-//     throw error // rethrow to be caught by the outer catch
-//   }
-// }
-
-// await runServer()
-// console.log('Done')
-// // runServer().catch((error) => {
-// //   console.error("Fatal error running server:", error)
-// //   process.exit(1)
-// // })
