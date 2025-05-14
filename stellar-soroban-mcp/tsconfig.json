@@ -1,8 +1,9 @@
 {
     "compilerOptions": {
-      "target": "ES2022",
-      "strict": true,
-      "esModuleInterop": true,
+    "esModuleInterop": true,
+    "target": "ES2015",
+    "strict": true,
+    "lib": ["ES2015", "DOM"],
       "skipLibCheck": true,
       "forceConsistentCasingInFileNames": true,
       "resolveJsonModule": true,

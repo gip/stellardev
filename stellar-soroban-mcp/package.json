@@ -17,11 +17,13 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.11.0",
+    "express": "*",
     "uuid": "^11.1.0",
     "zod": "^3.24.4",
     "zod-to-json-schema": "^3.24.5"
   },
   "devDependencies": {
+    "@types/express": "^5.0.1",
     "@types/node": "^22.15.8",
     "typescript": "^5.8.3"
   }

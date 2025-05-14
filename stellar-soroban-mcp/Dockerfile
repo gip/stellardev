@@ -64,4 +64,4 @@ ENV NODE_ENV=production
 # Install production dependencies
 RUN npm ci --ignore-scripts --omit-dev
 
-ENTRYPOINT ["node", "/app/dist/index.js"]
+ENTRYPOINT ["node", "/app/dist/index.js", "--http"]
